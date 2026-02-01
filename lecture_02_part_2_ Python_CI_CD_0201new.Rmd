@@ -1,0 +1,506 @@
+# Lecture 2｜Python 项目管理（Shuang Song）
+
+## 项目管理的重要性（图1、13、12）
+
+![1](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/10af30bce37f5f8c17a44f82b11dd7e28573f62a/1.png)
+- **协作是默认场景**：代码需要与他人合作，本地电脑上的个人开发流程不适用于协作，不适用于整个团队统一代码风格、代码工具，也不适用于新成员迅速熟悉结构并操作。因此需要 Git 管理代码变更历史，使用 pyproject.toml 或 requirements.txt 锁定依赖版本，并统一代码风格（如 Black、Ruff），使用 pre-commit hooks 自动检查。
+- **需要统一标准**：：代码会有个人风格（例如格式差异），项目需要一套适用于所有参与者的标准，包含项目结构（遵循 Python 项目最佳实践，如 src-layout）、配置方式（可使用 `pyproject.toml` 统一管理项目元数据、依赖、工具配置）、代码风格（使用统一的格式化工具和 lint 规则），否则维护成本会随着人数和时间指数增长。
+- **需要“工业生产级别”的质量控制**：每一次改动都可能引入回归，必须用自动化测试、持续集成（CI）与类型检查（可使用Type Hints和 mypy 提前发现潜在错误）等机制，把质量控制从“靠自觉”变成“靠流程”，让问题尽早暴露、可重复定位。
+- **代码是流动的**：代码会不断被新人维护并阅读，真正的“交付物”不是某个版本的代码，而是长期可演进的工程系统，因此需要标准化的目录结构、可复现的环境与可读的约定。
+- **用户友好（用户体验需要被设计）**：用户需要清晰的安装方式、最小可运行示例与可理解的报错信息，否则“能用”会变成维护者的长期负担。
+- **对贡献者友好（贡献者体验决定社区规模）**：CONTRIBUTING、开发环境说明、Pull Request 流程会直接影响外部贡献能否“低摩擦”进入。越清晰、越自动化，越容易形成稳定的贡献循环。
+- **权限与职责需要制度化**：主分支应受到保护（通过测试、lint 检查才可合并），并用GitHub/GitLab 的权限区分维护者与贡献者，把责任边界写进规则里，避免误操作破坏稳定性。
+![13](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/598ec896349bff4f8cbd2535f9b4cd013491a7b9/13.png)
+![12](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/2e51086d513fb0ad3a7db10dc98e15db15373dba/12.png)
+---
+
+## 最重要的三件事
+
+> **Testing（测试）第一**，其次是 **Documentation（文档）**，而后是 **CI/CD（持续集成与持续部署）**。
+
+---
+
+## 1.Testing（最重要）（图11）
+
+![11](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/598ec896349bff4f8cbd2535f9b4cd013491a7b9/11.png)
+
+### 1.1 测试（testing）的重要性
+
+测试是确保代码质量的核心手段，能够验证代码功能是否符合预期，防止回归问题（新改动破坏旧功能），展示代码文件的执行方式，且支持安全重构。
+
+
+### 1.2 测试覆盖率（coverage）的意义
+
+- 测试首先要做到“**别人也可以使用这份代码**”，建议以 **80% 覆盖率**作为基本目标。
+- 更稳妥的做法是：把 **80%** 当作“全库底线”，同时对关键路径（核心算法、公共 API、数据读写）争取接近 **100%**。
+- 覆盖率是指，当运行一次测试脚本时，仓库中被测试执行到的代码行比例达到80%，意味着测试能够运行到仓库中相当比例的代码路径，从而更可能暴露改动带来的问题。
+
+> 讲者提醒：在 mesa 项目中如果修复了代码中的 bug，应推送到 Git，并运行测试，通知仓库维护者。
+
+### 1.3 测试的第二个好处：TDD（Test-Driven Development）
+
+- TDD 的常规逻辑是“**先写测试，再写实现**”，不断调整代码，直到测试通过。在 AI 生成代码越来越多的时代，测试更关键。因为AI 代码可能“看起来能跑”，但更容易在修改时破坏核心功能；测试可以用来保证核心行为不被悄悄改变。
+
+### 1.4 测试要独立（independent / isolated）
+
+- 一条被调用的命令背后可能对应众多类与函数的层层调用。  
+  最终当然需要一个“happy path”的整体测试，确保所有流程都能顺利通过；但更重要的是**单元测试**：为代码中的每一个函数/功能编写相对独立的测试。
+
+- 常见的测试层级可以分为三类：
+  1. **单元测试（Unit tests）**：只测一个函数/类，快速、隔离、可重复。工具可参考：`pytest`（常用测试框架）、`unittest`（Python 自带测试框架）。
+  2. **集成测试（Integration tests）**：测试多个组件之间的交互是否正常，验证系统的整体功能可顺利运行。
+  3. **端到端测试（E2E tests）**：从用户视角运行完整流程（例如安装→运行示例→生成结果），模拟真实场景，这种方法覆盖面最广但成本最高。
+- 现实中代码经常高度耦合，导致“很难独立测试”。例如函数 A 依赖另一个函数/类 B，并且需要输入对象 b。成熟的测试工具可以**模拟（mock）**一个对象 B 输入给 A，从而让 A 的测试保持独立。
+
+### 1.5 为什么强调“测试要跑得快”
+
+- 对大型 agent-based model（ABM）而言，完整模拟一次对算力与时间消耗很大；“用一天跑一遍测试”不现实。因此需要拆解测试：让每一部分测试尽量独立、运行迅速。这些独立测试组合在一起，就能对整个应用程序与代码库建立足够信心，证明其可靠与稳健。
+
+### 1.6 示例
+
+```python
+# tests/test_model.py
+import pytest
+from course.lecture_01.part_3_homework_lecture1.model import MoneyModel
+
+def test_model_initialization():
+    """Test that model initializes with correct number of agents."""
+    model = MoneyModel(width=10, height=10, num_agents=50)
+    assert len(model.schedule.agents) == 50
+    assert model.grid.width == 10
+    assert model.grid.height == 10
+
+def test_agent_step():
+    """Test agent step function updates agent state."""
+    model = MoneyModel(width=10, height=10, num_agents=10)
+    agent = model.schedule.agents[0]
+    initial_wealth = agent.wealth
+    agent.step()
+    # Agent should have interacted with neighbors
+    assert agent.wealth >= 0  # Wealth should be non-negative
+```
+
+---
+
+## 2.Documentation（第二重要）
+
+> 讲者认为在 web coding 与 AI 辅助编程能力越来越强的背景下，文档的重要性反而上升。  
+> 越来越多工作方式可能变成：把文档写清楚、用少量注释描述预期行为，然后由 AI 生成实现。（图2）
+![2](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/10af30bce37f5f8c17a44f82b11dd7e28573f62a/2.png)
+
+### 2.1 文档（Documentation）重要性
+
+- **文档是项目与用户、贡献者沟通的桥梁**，常见组成为`README.md`（快速开始/安装/最小示例）、教程与示例（examples）、API文档（函数、类的详细说明）、贡献指南（指导用户如何参与开发）
+
+### 2.2 文档分类（按受众）
+
+- **面向用户（用户文档）**：  
+  - 用户文档需要回答“如何下载仓库、如何运行最小示例让项目先跑起来”，以及“想做高级操作时怎么做”。做到这些通常已经足够。
+  - 在工程实践里通常对应：`README.md`（快速开始/安装/最小示例）、教程与示例代码、常见问题FAQ，以及必要的“错误排查”说明。
+  
+- **面向开发者（开发者文档 / API 文档）**：  
+  - 架构设计：大型项目里 A 与 B 耦合时，A 与 B各自提供技术文档，上层整合者再根据两份文档设计顶层架构。
+  - 需要说明如何调用仓库、API 如何使用
+  - 开发环境设置
+  - 贡献指南
+ 
+- **代码内文档（code documentation）**：
+  - 写给“人 + 编辑器/IDE”看的。
+  - 函数/类的 docstring
+  - 行内注释（解释"为什么"而非"是什么"）
+
+### 2.3 代码文档（Code documentation）文档字符串（docstring）与类型提示（type hints）
+
+- 文档写作的一个硬标准是：提供**可运行的示例代码**（示例必须可运行）。对开源项目而言，“能复制粘贴跑通”往往比“写得很长”更重要。
+- 文档需要与代码同步更新：每一次行为变更（API、参数、默认值、输出）都应该对应文档与示例的更新，否则文档会迅速变成“误导”。
+- 常见的文档生成与站点工具包括：`Sphinx`、`MkDocs`、`Jupyter Book`（按项目体量与受众选择）。
+- 编辑器（PyCharm、VSCode）本质都是文本编辑器；代码内文档能直接服务开发体验。
+- **docstring**：在函数/类中用三引号写说明（`"""..."""`），让调用者在 IDE 中可直接看到说明。
+- 大型项目里通常会统一 docstring 风格（例如 **Google** 或 **NumPy** 风格），这样人和工具都能稳定解析。
+- **type hints**：在函数签名中指定参数类型与返回类型，例如参数 `project_name` 是 `str`，返回 `None`。  
+  优点：IDE 可以基于类型信息给出调用提示；当预期是字符串却传入整数/浮点数时，编辑器可以提示类型不匹配。
+- 代码注释更应该解释“**为什么这样做**”（设计选择、约束、坑），而不是重复代码已经写明的“是什么”。
+
+### 2.4 示例
+
+```python
+class MoneyAgent(Agent):
+    """An agent with fixed initial wealth.
+
+    The agent moves randomly and exchanges wealth with neighbors
+    based on certain rules.
+
+    Args:
+        unique_id: Unique identifier for the agent.
+        model: The model instance the agent belongs to.
+        wealth: Initial wealth of the agent. Defaults to 1.
+
+    Attributes:
+        wealth: Current wealth of the agent.
+        color: Color attribute of the agent ('red' or 'blue').
+    """
+
+    def __init__(self, unique_id, model, wealth=1):
+        super().__init__(unique_id, model)
+        self.wealth = wealth
+        self.color = None
+```
+
+---
+
+## 3.CI/CD（第三重要：持续集成与持续部署）（图14）
+
+![14](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/9224812dc26f52f8041ef3b0ddc57810ff8b6aed/14.png)
+
+### 3.1 CI/CD的重要性
+
+- CI/CD 自动化测试、构建与部署，可以确保每次代码提交都经过自动化检查，使用者可以快速发现和修复问题，减少人工操作错误并提高发布效率。
+
+### 3.2 CI（Continuous Integration）
+
+- 当开发流程跑通后，希望把工程管道尽量自动化。  
+  不希望手动检查类型、文档、测试覆盖率、类型标注等，就建立自动化管道，让机器执行这些检查。  
+  这类自动化检查流程构成持续集成的重要部分。
+
+- 一个典型 CI 会包含：
+  - 代码提交触发自动化测试
+  - 运行测试（`pytest`）并产出测试报告
+  - 运行 lint/format（例如 `ruff` / `black`）与类型检查（`mypy`）
+  - （可选）上传覆盖率到 Codecov 等服务，方便在 PR 中追踪质量变化
+
+### 3.3 CD（Continuous Deployment）
+
+- 完成开发后推送到远端（如 GitHub）并部署到测试环境时，也希望流程自动化。  
+  远端自动触发一系列步骤（部署到测试环境，进行集成测试，部署到生产环境等），这部分称为持续部署。
+- 本讲以 GitHub 为主要例子（也可能存在其他平台）。
+
+### 3.4 示例 GitHub Actions 配置
+
+```yaml
+# .github/workflows/test.yml
+name: Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync
+      - name: Run tests
+        run: |
+          uv run pytest tests/ --cov=src --cov-report=xml
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+```
+
+---
+
+## 4.代码质量检查工具（lint / format / type）
+
+> 讲者认为，格式检查不应成为程序员的负担；现代工具与 CI 能自动完成大量格式与规范工作。（图15）
+![15](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/15.png
+)
+
+### 4.1 格式与风格工具
+- 代码检查工具（Linting）
+  例如：`ruff`、`flake8`、`isort`、`black` 、`Pylint`等。  
+  其中 `ruff` 常被用来替代 `flake8`+`isort` 的组合，并且自带 `ruff format`，可以把“检查 + 格式化”收敛到一个工具链里。`Pylint`用于进行全面的代码质量检查
+- 命令行运行工具即可自动检查并修复格式问题。  
+- 通常会选择一套组合来统一格式与规范。
+
+### 4.2 类型检查：mypy
+- `mypy`：自动检查类型标注与实际使用的冲突；有冲突会报错。
+
+### 4.3 pre-commit：提交前的自动检查（pre-commit hooks）
+- `pre-commit` 会在提交代码前自动调用一系列检查工具。逻辑是：先运行 hooks，只有全部通过后，才允许 `git commit`。这相当于把持续集成的重要部分“前置到本地提交之前”，从而提升代码质量与协作稳定性。
+- 例如：
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+```
+
+---
+
+## 5.部署管理（图4）
+![4](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/4.png)
+- 对任何开源仓库做贡献，第一步都是 clone 仓库并在本地建立可运行环境。
+- 依赖声明方式，确保项目在不同环境中使用相同的依赖版本
+- 依赖管理的目标是：**锁定环境、减少冲突、让安装可重复**。否则同一份仓库在不同电脑/不同时间很容易出现“在我机器上能跑”的错觉。
+  - **现代方式**：用 `pyproject.toml`可统一管理项目元数据，并用`uv`提供更快的依赖解析和安装。
+  - **传统方式**：`requirements.txt`，仍广泛存在，列出依赖与版本，简单直接，适合小型项目。
+- 现代工具通常支持导出 `requirements.txt`，因此很多项目会让两种方式共存以兼容不同用户与流程。
+- 工具例子：`pip`、`poetry`、`uv`、`hatch` 等；其中 `uv` 安装速度快。无论哪个都能导出为 requirements.txt。
+- 现代项目通常会把“项目元数据 + 依赖 + 工具配置”集中到 `pyproject.toml`。
+例如：
+
+```toml
+[project]
+name = "course"
+version = "0.1.0"
+description = "ABM Course Materials"
+requires-python = ">=3.11"
+dependencies = [
+    "mesa>=3.3.1",
+    "numpy>=2.2.2",
+    "pandas>=2.3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "pre-commit>=4.3.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+```
+
+---
+
+- 工程里经常把开发依赖（dev）与运行依赖分开：用户安装更轻量，开发者则通过 `uv sync --extra dev`（或等价方式）拉齐完整工具链。
+
+---
+
+## 6. 项目管理的最佳实践
+### 6.1 一个推荐的项目结构（best-practice overview）（图5、6）
+![5](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/5.png)
+
+![6](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/6.png)
+
+```
+project-name/
+├── .github/
+│   └── workflows/          # CI/CD 配置
+├── docs/                   # 文档
+│   ├── conf.py
+│   └── index.md
+├── src/                    # 源代码（src-layout）
+│   └── package_name/
+│       ├── __init__.py
+│       ├── module1.py
+│       └── module2.py
+├── tests/                  # 测试代码
+│   ├── __init__.py
+│   ├── test_module1.py
+│   └── test_module2.py
+├── .gitignore              # Git 忽略文件
+├── .pre-commit-config.yaml # Pre-commit 配置
+├── pyproject.toml          # 项目配置
+├── README.md               # 项目说明
+└── LICENSE                 # 许可证
+```
+
+
+### 6.2 为什么推荐 src-layout（Why src-layout?）
+
+- **防止误导入本地开发代码**：避免因当前目录/路径优先级导致“本地能跑、装成包就坏”的情况。
+- **强制测试安装后的包（而非直接测源码目录）**：让测试更贴近真实用户的安装与使用方式。
+- **项目组织更清晰**：生产代码、测试、文档与 CI 配置各归其位，协作成本更低。
+- **行业常见结构**：符合开源与团队协作惯例，维护者更容易接手。
+
+### 6.3 关键组成（Key Components）
+
+- **`github/workflows/`**：CI/CD 配置（自动跑测试、lint、type check、发布等）。
+- **`src/`**：所有生产代码（production code）。
+- **`tests/`**：测试套件（test suite）。
+- **`pyproject.toml`**：项目配置入口（依赖、构建、ruff/black/mypy/pytest 等工具配置）。
+
+### 6.4 版本控制最佳实践（图7）
+
+![7](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/91d17531aa2ff0bd3ab70f2c44fed41d594a2132/7.png)
+#### 6.4.1 分支策略
+##### main（主分支）
+- 主分支应保持最稳定的代码；用户通常下载的就是主分支。
+- 注意主分支的 commit 需要很“干净”，发布一次对应一个版本号。
+- 因此主分支通常会开启 **分支保护规则（branch protection）**：
+  - 只能通过 Pull Request 合并（禁止直接 push）
+  - 至少 1 位维护者 review 才能合并
+  - 必须通过 CI（测试 / lint / 类型检查）
+  - （可选）限制谁可以合并：维护者（maintainers） vs 外部贡献者（contributors）
+
+##### develop（开发集成分支）
+- 开发者之间的协作主要发生在 develop；由于多人频繁合并，改动更密集。
+- 当 develop 上积累足够新功能后，再合并回 main，并发布新版本。
+
+##### feature（功能分支）
+- 开发新功能时，从 develop 拉出 `feature/*` 分支进行开发。
+- 功能完成后应合并回 develop（而不是直接合并 main）。
+
+##### hotfix（紧急修复分支）（图8）
+- 用于修复用户反馈的紧急 bug。
+- hotfix 通常是除 develop 外，唯一需要直接与 main 交互的分支，因为它服务“快速修复并发布”。
+
+![8](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/8.png)
+
+#### 6.4.2 提交信息规范
+   - 使用清晰的提交信息
+   - 遵循约定式提交（Conventional Commits）
+   - 示例：`feat: add color attribute to MoneyAgent`
+
+#### 6.4.3 代码审查
+   - 所有代码变更通过 Pull Request
+   - 至少一人审查后才能合并
+   - 使用自动化检查确保代码质量
+   
+### 6.5 典型开发工作流（图9）
+
+1. clone 仓库到本地
+2. 阅读仓库的 `README.md` 与 `CONTRIBUTING.md`（开发环境、代码风格、测试命令、PR 规范）
+3. 创建个人分支（例如：
+ ```bash
+   git checkout -b feature/add-color-attribute
+   ```）
+4. 在个人分支上进行代码改动
+5. 运行测试，确保本地测试通过
+6. 提交 commit：“约定式提交”（Conventional Commits），例如：
+   - `feat: ...` 表示新增功能（feature）
+   
+   ```bash
+   git add .
+   git commit -m "feat: add color attribute to MoneyAgent"
+   ```
+7. push 到远端分支，例如：
+  ```bash
+   git push origin feature/add-color-attribute
+   ```
+8. 开 PR，等待维护者 review（维护者通常负责最终合并与发布）
+9. 通常需要多轮反馈：本地修改 → 再提交 → 再修改 → 再提交；并持续保证测试通过。
+10. PR 最终被合并到 develop 或 main（依项目策略而定）
+![9](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/9.png)
+
+### 6.6 发布流程（图10）
+![10](https://raw.githubusercontent.com/Hanyun-75/ABMINDER/8f992506e599fc9c9014f454edca9067946035fd/10.png)
+
+- 版本号通常由三部分组成：
+  - **主版本（major）**
+  - **次版本（minor）**
+  - **补丁（patch）**
+  
+- patch：修 bug；minor：新增小功能；major：breaking change（不兼容变更，进入新里程碑）。
+
+- 约定式提交的价值：当 commit 语法标准化后，很多版本号与发布相关工作可以由机器自动完成（在 CI/CD 流水线中体现）。
+
+- 一个典型发布流程会把“做对的事情”写成**发布检查清单**：
+  - [ ] 所有测试通过（含多版本测试时可用 `tox`）
+  - [ ] 文档与示例已更新（README/API/教程）
+  - [ ] 版本号已更新（`MAJOR.MINOR.PATCH`）
+  - [ ] 变更记录已更新（CHANGELOG）或由工具自动生成 release notes
+  - [ ] 创建 Git tag，并生成 release（手动或用 `release-please` 自动化）
+
+- 自动化发布
+   - 使用 CI/CD 自动构建和发布
+   - 自动生成发布说明
+
+-快速开始检查清单（新项目设置）**
+
+  - [ ] 建立 src-layout 项目结构（`src/` + `tests/` + `docs/`）
+  - [ ] 配置 `pyproject.toml`（依赖、dev 依赖、工具配置）
+  - [ ] 初始化 Git 仓库与 `.gitignore`
+  - [ ] 配置 `.pre-commit-config.yaml`
+  - [ ] 写清楚 `README.md`：安装、最小示例、贡献入口
+  - [ ] 配置 GitHub Actions：测试 + lint + type check
+  - [ ] 写第一批单元测试（至少覆盖核心 API）
+
+- 持续维护检查清单**
+
+  - [ ] 保持依赖更新，并在 CI 中验证
+  - [ ] PR 合并前必须通过自动化检查
+  - [ ] 版本发布时同步更新文档与变更记录
+
+---
+
+## 7.模板库作业与工具示例
+
+- 作业要求：clone 到本地，在模板基础上做一点改动，并理解每一步在做什么；中间有问题可以提问。
+- 模板库文档通常包含：测试框架、质量工具、包管理工具（uv/poetry）、文档部署方式、项目结构等。
+
+### 7.1 工具与资源
+
+- 常见的工具栈可以按职责分层理解：
+  - **项目管理 / 打包**：
+  `uv`：快速的 Python 包管理器和项目管理工具
+  `poetry`：依赖管理和打包工具
+  `hatch`：现代 Python 项目构建工具
+  - **代码质量**：
+  `ruff`：快速的 linter 和 formatter
+  `black`：代码格式化工具
+  `mypy`：静态类型检查
+  `pre-commit`：Git hooks 管理
+  - **测试**：
+  `pytest`；测试框架
+  `pytest-cov`：测试覆盖率
+  `tox`：多环境测试
+  - **文档**：`Sphinx`、`MkDocs`、`Jupyter Book`
+  - **CI/CD**：GitHub Actions / GitLab CI / CircleCI
+
+- 进一步学习时，一个可操作的路线是“看得懂官方指南 + 找到一套可复用模板”：
+  - Python Packaging User Guide
+  - The Hitchhiker's Guide to Python
+  - Real Python（按主题查最佳实践）
+
+### 7.2 pre-commit 配置文件
+- `.pre-commit-config.yaml` 中每个小块对应一个 hook（一个检查工具），例如 black、ruff 等。
+- hook 列表不是绝对标准；pre-commit 本质是一系列钩子，决定“提交前要自动检查哪些内容”可按项目偏好定制。
+- 例如，`interrogate` 可用于检查文档/注释覆盖率；若覆盖率未达到阈值（例如 80%），hook 不通过，并提示需要增加测试/文档以提升稳健性（robustness）。
+
+### 7.3 release-please（CD 自动化发布）
+- `release-please` 是 Google 的工具流，通过添加配置文件即可自动化完成发布相关步骤：
+  - 自动生成版本号标签（tag）
+  - 自动生成 release
+  - 打包并上传到 PyPI
+- 用户侧效果：发布完成后，用户可直接通过 `pip install` 安装包。
+
+### 7.4 tox（多版本测试）
+- 本地通常只安装一个主要 Python 环境，但包希望兼容多个 Python 版本。
+- `tox` 可自动创建不同版本的测试环境并运行测试，用于验证跨版本兼容性，也是常见的 CI/CD 工具之一。
+
+---
+
+## 8.总结
+
+- Python 项目管理不仅仅是工具的使用，更是一种工程思维的体现。通过： **标准化**：统一的项目结构和工具配置；**自动化**：测试、检查、部署的自动化； **文档化**：清晰的文档和代码注释；**协作化**：规范的开发流程和代码审查，
+我们可以构建出高质量、可维护、可协作的 Python 项目。记住：**好的项目管理是长期投资，虽然初期需要一些时间投入，但会显著提高项目的质量和开发效率。**
+
+
